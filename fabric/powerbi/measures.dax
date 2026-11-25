@@ -1,0 +1,50 @@
+Total Trips = SUM ( FactTaxiDaily[trips] )
+
+Revenue USD = SUM ( FactTaxiDaily[revenue_usd] )
+
+Revenue EUR = SUM ( FactTaxiDaily[revenue_eur] )
+
+Revenue per Trip USD = DIVIDE ( [Revenue USD], [Total Trips] )
+
+Revenue per Trip EUR = DIVIDE ( [Revenue EUR], [Total Trips] )
+
+FX Impact % =
+VAR usdBase = [Revenue per Trip USD]
+VAR eurBase = [Revenue per Trip EUR]
+RETURN DIVIDE ( usdBase - eurBase, usdBase )
+
+Average Fare USD = DIVIDE ( SUM ( FactTaxiDaily[fare_usd] ), [Total Trips] )
+
+Average Trip Minutes = AVERAGE ( FactTaxiDaily[avg_trip_minutes] )
+
+Average PM2.5 = AVERAGE ( FactUrbanDaily[avg_pm25] )
+
+Average NO2 = AVERAGE ( FactUrbanDaily[avg_no2] )
+
+Average O3 = AVERAGE ( FactUrbanDaily[avg_o3] )
+
+Trips vs PM2.5 Correlation =
+VAR pairedDays = FILTER ( FactUrbanDaily, NOT ISBLANK ( FactUrbanDaily[trips] ) && NOT ISBLANK ( FactUrbanDaily[avg_pm25] ) )
+VAR dayCount = COUNTROWS ( pairedDays )
+VAR tripsTotal = SUMX ( pairedDays, FactUrbanDaily[trips] )
+VAR pm25Total = SUMX ( pairedDays, FactUrbanDaily[avg_pm25] )
+VAR productTotal = SUMX ( pairedDays, FactUrbanDaily[trips] * FactUrbanDaily[avg_pm25] )
+VAR tripsSquaredTotal = SUMX ( pairedDays, FactUrbanDaily[trips] * FactUrbanDaily[trips] )
+VAR pm25SquaredTotal = SUMX ( pairedDays, FactUrbanDaily[avg_pm25] * FactUrbanDaily[avg_pm25] )
+RETURN
+    DIVIDE (
+        dayCount * productTotal - tripsTotal * pm25Total,
+        SQRT ( ( dayCount * tripsSquaredTotal - tripsTotal * tripsTotal ) * ( dayCount * pm25SquaredTotal - pm25Total * pm25Total ) )
+    )
+
+Trips 7 Day Average =
+AVERAGEX (
+    DATESINPERIOD ( DimDate[full_date], MAX ( DimDate[full_date] ), -7, DAY ),
+    CALCULATE ( [Total Trips] )
+)
+
+Busiest Pickup Zone =
+MAXX ( TOPN ( 1, VALUES ( DimZone[zone_name] ), [Total Trips], DESC ), DimZone[zone_name] )
+
+Weekend Share of Trips =
+DIVIDE ( CALCULATE ( [Total Trips], DimDate[is_weekend] = TRUE () ), [Total Trips] )

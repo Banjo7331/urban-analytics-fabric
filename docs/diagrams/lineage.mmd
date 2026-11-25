@@ -1,0 +1,44 @@
+flowchart LR
+    yellow[taxi/yellow/*.parquet] --> taxi_trips
+    zones[taxi/zones/taxi_zone_lookup.csv] --> taxi_zones
+    openaq_hourly --> air_quality_hourly
+    worldbank_gdp --> gdp_annual
+    ecb_fx_usd_eur --> fx_rates_daily
+    openmeteo_daily --> weather_daily
+
+    taxi_trips --> fact_taxi_daily
+    taxi_trips --> fact_taxi_hourly
+    taxi_zones --> dim_zone
+    air_quality_hourly --> dim_station
+    air_quality_hourly --> fact_air_quality_daily
+    air_quality_hourly --> fact_air_quality_hourly
+    gdp_annual --> dim_gdp
+    fx_rates_daily --> dim_fx
+    dim_fx --> fact_taxi_daily
+    calendar((window)) --> dim_date
+    calendar --> dim_fx
+    dim_date --> fact_urban_daily
+    fact_taxi_daily --> fact_urban_daily
+    fact_air_quality_daily --> fact_urban_daily
+    weather_daily --> fact_urban_daily
+    dim_fx --> fact_urban_daily
+    fact_taxi_daily --> fact_zone_station_correlation
+    fact_air_quality_daily --> fact_zone_station_correlation
+
+    fact_urban_daily --> TrafficVersusAirQuality
+    fact_zone_station_correlation --> StrongestZoneStationLinks
+    fact_taxi_hourly --> DemandByHourVersusPollution
+    fact_air_quality_hourly --> DemandByHourVersusPollution
+    fact_taxi_daily --> RevenuePerTripUsdVersusEur
+    dim_fx --> RevenuePerTripUsdVersusEur
+    fact_urban_daily --> YearlyGrowthVersusEnvironment
+    dim_gdp --> YearlyGrowthVersusEnvironment
+
+    classDef bronze fill:#f3e8d8,stroke:#8f4f00,color:#141a1e
+    classDef silver fill:#e4eaee,stroke:#586168,color:#141a1e
+    classDef gold fill:#e0f0ef,stroke:#0d6a6a,color:#141a1e
+    classDef view fill:#ffffff,stroke:#0d6a6a,stroke-dasharray: 4 3,color:#141a1e
+    class yellow,zones,openaq_hourly,worldbank_gdp,ecb_fx_usd_eur,openmeteo_daily bronze
+    class taxi_trips,taxi_zones,air_quality_hourly,gdp_annual,fx_rates_daily,weather_daily silver
+    class dim_date,dim_zone,dim_station,dim_fx,dim_gdp,fact_taxi_daily,fact_taxi_hourly,fact_air_quality_daily,fact_air_quality_hourly,fact_urban_daily,fact_zone_station_correlation gold
+    class TrafficVersusAirQuality,StrongestZoneStationLinks,DemandByHourVersusPollution,RevenuePerTripUsdVersusEur,YearlyGrowthVersusEnvironment view

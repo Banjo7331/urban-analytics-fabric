@@ -1,0 +1,427 @@
+{
+  "name": "daily_refresh",
+  "properties": {
+    "parameters": {
+      "workspace": {
+        "type": "string",
+        "defaultValue": "urban-analytics"
+      },
+      "window_start": {
+        "type": "string",
+        "defaultValue": "2024-01-01"
+      },
+      "window_end": {
+        "type": "string",
+        "defaultValue": "2024-06-30"
+      },
+      "months": {
+        "type": "array",
+        "defaultValue": [
+          "2024-01",
+          "2024-02",
+          "2024-03",
+          "2024-04",
+          "2024-05",
+          "2024-06"
+        ]
+      },
+      "openaq_api_key": {
+        "type": "securestring"
+      }
+    },
+    "activities": [
+      {
+        "name": "LandTaxiMonths",
+        "type": "ForEach",
+        "dependsOn": [],
+        "typeProperties": {
+          "items": {
+            "value": "@pipeline().parameters.months",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 3,
+          "activities": [
+            {
+              "name": "CopyMonthlyFile",
+              "type": "Copy",
+              "dependsOn": [],
+              "policy": {
+                "timeout": "0.01:00:00",
+                "retry": 2,
+                "retryIntervalInSeconds": 120
+              },
+              "typeProperties": {
+                "source": {
+                  "type": "BinarySource",
+                  "storeSettings": {
+                    "type": "HttpReadSettings",
+                    "requestMethod": "GET"
+                  },
+                  "datasetSettings": {
+                    "type": "Binary",
+                    "typeProperties": {
+                      "location": {
+                        "type": "HttpServerLocation",
+                        "relativeUrl": {
+                          "value": "trip-data/yellow_tripdata_@{item()}.parquet",
+                          "type": "Expression"
+                        }
+                      }
+                    },
+                    "externalReferences": {
+                      "connection": "<connection: tlc_cloudfront>"
+                    }
+                  }
+                },
+                "sink": {
+                  "type": "BinarySink",
+                  "storeSettings": {
+                    "type": "LakehouseWriteSettings"
+                  },
+                  "datasetSettings": {
+                    "type": "Binary",
+                    "typeProperties": {
+                      "location": {
+                        "type": "LakehouseLocation",
+                        "folderPath": "taxi/yellow",
+                        "fileName": {
+                          "value": "yellow_tripdata_@{item()}.parquet",
+                          "type": "Expression"
+                        }
+                      }
+                    },
+                    "linkedService": {
+                      "name": "lh_bronze",
+                      "properties": {
+                        "type": "Lakehouse",
+                        "typeProperties": {
+                          "workspaceId": "<workspace-id>",
+                          "artifactId": "<lh_bronze-id>",
+                          "rootFolder": "Files"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "LandTaxiZones",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.01:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 120
+        },
+        "typeProperties": {
+          "source": {
+            "type": "BinarySource",
+            "storeSettings": {
+              "type": "HttpReadSettings",
+              "requestMethod": "GET"
+            },
+            "datasetSettings": {
+              "type": "Binary",
+              "typeProperties": {
+                "location": {
+                  "type": "HttpServerLocation",
+                  "relativeUrl": "misc/taxi_zone_lookup.csv"
+                }
+              },
+              "externalReferences": {
+                "connection": "<connection: tlc_cloudfront>"
+              }
+            }
+          },
+          "sink": {
+            "type": "BinarySink",
+            "storeSettings": {
+              "type": "LakehouseWriteSettings"
+            },
+            "datasetSettings": {
+              "type": "Binary",
+              "typeProperties": {
+                "location": {
+                  "type": "LakehouseLocation",
+                  "folderPath": "taxi/zones",
+                  "fileName": "taxi_zone_lookup.csv"
+                }
+              },
+              "linkedService": {
+                "name": "lh_bronze",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "workspaceId": "<workspace-id>",
+                    "artifactId": "<lh_bronze-id>",
+                    "rootFolder": "Files"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "LandApiSources",
+        "type": "TridentNotebook",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.02:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 300,
+          "secureInput": true
+        },
+        "typeProperties": {
+          "notebookId": "<notebook-id: 00_land_api_sources>",
+          "workspaceId": "<workspace-id>",
+          "parameters": {
+            "workspace": {
+              "value": {
+                "value": "@pipeline().parameters.workspace",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "window_start": {
+              "value": {
+                "value": "@pipeline().parameters.window_start",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "window_end": {
+              "value": {
+                "value": "@pipeline().parameters.window_end",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "openaq_api_key": {
+              "value": {
+                "value": "@pipeline().parameters.openaq_api_key",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "RefreshEcb",
+        "type": "RefreshDataflow",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 120
+        },
+        "typeProperties": {
+          "dataflowId": "<dataflow-id: ecb_fx_usd_eur>",
+          "workspaceId": "<workspace-id>",
+          "notifyOption": "NoNotification"
+        }
+      },
+      {
+        "name": "RefreshWorldBank",
+        "type": "RefreshDataflow",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 120
+        },
+        "typeProperties": {
+          "dataflowId": "<dataflow-id: worldbank_gdp>",
+          "workspaceId": "<workspace-id>",
+          "notifyOption": "NoNotification"
+        }
+      },
+      {
+        "name": "BuildSilver",
+        "type": "TridentNotebook",
+        "dependsOn": [
+          {
+            "activity": "LandTaxiMonths",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "LandTaxiZones",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "LandApiSources",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "RefreshEcb",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "RefreshWorldBank",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.02:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 300,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "notebookId": "<notebook-id: 02_build_silver>",
+          "workspaceId": "<workspace-id>",
+          "parameters": {
+            "workspace": {
+              "value": {
+                "value": "@pipeline().parameters.workspace",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "window_start": {
+              "value": {
+                "value": "@pipeline().parameters.window_start",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "window_end": {
+              "value": {
+                "value": "@pipeline().parameters.window_end",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "BuildGold",
+        "type": "TridentNotebook",
+        "dependsOn": [
+          {
+            "activity": "BuildSilver",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.02:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 300,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "notebookId": "<notebook-id: 03_build_gold>",
+          "workspaceId": "<workspace-id>",
+          "parameters": {
+            "workspace": {
+              "value": {
+                "value": "@pipeline().parameters.workspace",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "window_start": {
+              "value": {
+                "value": "@pipeline().parameters.window_start",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "window_end": {
+              "value": {
+                "value": "@pipeline().parameters.window_end",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "WaitForSqlSync",
+        "type": "Wait",
+        "dependsOn": [
+          {
+            "activity": "BuildGold",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "typeProperties": {
+          "waitTimeInSeconds": 90
+        }
+      },
+      {
+        "name": "LoadWarehouse",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "WaitForSqlSync",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 120
+        },
+        "linkedService": {
+          "name": "wh_analytics",
+          "properties": {
+            "type": "DataWarehouse",
+            "typeProperties": {
+              "artifactId": "<wh_analytics-id>",
+              "workspaceId": "<workspace-id>"
+            }
+          }
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "NonQuery",
+              "text": "EXEC dbo.LoadGold;\nEXEC dbo.LoadReportTables;"
+            }
+          ]
+        }
+      },
+      {
+        "name": "RefreshModel",
+        "type": "PBISemanticModelRefresh",
+        "dependsOn": [
+          {
+            "activity": "LoadWarehouse",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "typeProperties": {
+          "semanticModelId": "<semantic-model-id: sm_urban_analytics>",
+          "groupId": "<workspace-id>"
+        }
+      }
+    ]
+  }
+}

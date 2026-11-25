@@ -1,0 +1,77 @@
+erDiagram
+    DimDate ||--o{ FactTaxiDaily : date_key
+    DimZone ||--o{ FactTaxiDaily : pickup_zone_key
+    DimFx ||--o{ FactTaxiDaily : date_key
+    DimDate ||--o{ FactTaxiHourly : date_key
+    DimDate ||--o{ FactAirQualityDaily : date_key
+    DimStation ||--o{ FactAirQualityDaily : station_key
+    DimDate ||--o{ FactAirQualityHourly : date_key
+    DimDate ||--|| FactUrbanDaily : date_key
+    DimZone ||--o{ FactZoneStationCorrelation : zone_key
+    DimStation ||--o{ FactZoneStationCorrelation : station_key
+    DimDate {
+        int date_key PK
+        date full_date
+        int year
+        int month
+        bit is_weekend
+    }
+    DimZone {
+        int zone_key PK
+        varchar borough
+        varchar zone_name
+        bit is_airport
+    }
+    DimStation {
+        int station_key PK
+        varchar station_name
+        float latitude
+        float longitude
+    }
+    DimFx {
+        int date_key PK
+        float usd_per_eur
+        bit is_carried_forward
+    }
+    DimGdp {
+        varchar country_code PK
+        int year PK
+        float gdp_usd
+    }
+    FactTaxiDaily {
+        int date_key FK
+        int pickup_zone_key FK
+        int trips
+        decimal revenue_usd
+        decimal revenue_eur
+    }
+    FactTaxiHourly {
+        int date_key FK
+        int hour
+        int trips
+    }
+    FactAirQualityDaily {
+        int date_key FK
+        int station_key FK
+        varchar parameter
+        float avg_value
+    }
+    FactAirQualityHourly {
+        int date_key FK
+        int hour
+        varchar parameter
+        float avg_value
+    }
+    FactUrbanDaily {
+        int date_key FK
+        int trips
+        float avg_pm25
+        float temperature_mean_c
+        float usd_per_eur
+    }
+    FactZoneStationCorrelation {
+        int zone_key FK
+        int station_key FK
+        varchar parameter
+        float pearson_r
+    }
