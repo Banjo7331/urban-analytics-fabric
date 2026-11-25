@@ -1,5 +1,7 @@
 # urban-analytics-fabric
 
+[![tests](https://github.com/Banjo7331/urban-analytics-fabric/actions/workflows/tests.yml/badge.svg)](https://github.com/Banjo7331/urban-analytics-fabric/actions/workflows/tests.yml)
+
 Course project on Microsoft Fabric: NYC taxi trips, air quality (OpenAQ), GDP (World Bank) and USD/EUR rates (ECB) in one lakehouse and warehouse, with a Power BI report. Weather (Open-Meteo) was added as an extra source.
 
 Medallion architecture: bronze (raw) → silver (cleaned, PySpark) → gold (star schema) → Fabric Warehouse → Power BI.
