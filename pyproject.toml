@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "urban-analytics"
-version = "0.1.2"
+version = "0.1.3"
 description = "Silver and gold transformations for the NYC mobility, air quality and economy lakehouse"
 requires-python = ">=3.10"
 dependencies = ["requests>=2.31"]

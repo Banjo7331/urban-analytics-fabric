@@ -7,6 +7,7 @@ from urban_analytics.api_sources import (
     OPENAQ_PAGE_SIZE,
     WEATHER_SCHEMA,
     OpenAqClient,
+    OpenAqUnavailable,
     bronze_frame,
     fetch_air_quality,
     fetch_weather,
@@ -181,3 +182,37 @@ def test_rows_match_the_bronze_schemas(spark):
         AIR_QUALITY_SCHEMA,
     )
     assert dict(air.dtypes)["datetime_from_utc"] == "timestamp"
+
+
+def test_openaq_retries_server_errors():
+    waits = []
+    api = FakeApi({"/locations": [FakeResponse({}, 500), FakeResponse({}, 503), FakeResponse({"results": []})]})
+    client = OpenAqClient("secret", get=api, sleep=waits.append, pause_seconds=0)
+    assert client.pages("locations", {}) == []
+    assert [wait for wait in waits if wait] == [5, 10]
+
+
+def test_openaq_gives_up_after_repeated_server_errors():
+    api = FakeApi({"/locations": lambda params: FakeResponse({}, 500)})
+    client = OpenAqClient("secret", get=api, sleep=lambda _: None, pause_seconds=0)
+    with pytest.raises(OpenAqUnavailable):
+        client.pages("locations", {})
+
+
+def test_air_quality_skips_a_sensor_that_keeps_failing():
+    locations = {
+        "results": [
+            location(1, "2020-01-01T00:00:00Z", "2025-01-01T00:00:00Z", [("pm25", "µg/m³")]),
+            location(2, "2020-01-01T00:00:00Z", "2025-01-01T00:00:00Z", [("no2", "ppm")]),
+        ]
+    }
+    api = FakeApi(
+        {
+            "/locations": [FakeResponse(locations)],
+            "/sensors/10/hours": lambda params: FakeResponse({}, 500),
+            "/sensors/20/hours": [FakeResponse({"results": [hour("2024-01-01T05:00:00Z", 0.02)]})],
+        }
+    )
+    client = OpenAqClient("secret", get=api, sleep=lambda _: None, pause_seconds=0)
+    rows = fetch_air_quality(client, WINDOW)
+    assert [row["sensor_id"] for row in rows] == [20]

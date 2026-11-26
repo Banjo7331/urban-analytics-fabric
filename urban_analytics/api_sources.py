@@ -1,3 +1,4 @@
+import logging
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -30,6 +31,7 @@ OPENAQ_PAGE_SIZE = 1000
 OPENAQ_PAUSE_SECONDS = 1.1
 OPENAQ_MAX_ATTEMPTS = 5
 OPENAQ_BACKOFF_SECONDS = 5
+OPENAQ_RETRYABLE_STATUS = (429, 500, 502, 503, 504)
 AIR_QUALITY_SCHEMA = (
     "location_id long, location_name string, sensor_id long, parameter string, unit string, "
     "latitude double, longitude double, value double, datetime_from_utc timestamp, datetime_to_utc timestamp"
@@ -83,6 +85,10 @@ class Sensor:
     longitude: float
 
 
+class OpenAqUnavailable(RuntimeError):
+    pass
+
+
 class OpenAqClient:
     def __init__(
         self,
@@ -102,11 +108,11 @@ class OpenAqClient:
         for attempt in range(OPENAQ_MAX_ATTEMPTS):
             self.sleep(self.pause_seconds)
             response = self.get(f"{OPENAQ_API}/{path}", params=params, headers=self.headers, timeout=TIMEOUT_SECONDS)
-            if response.status_code != 429:
+            if response.status_code not in OPENAQ_RETRYABLE_STATUS:
                 response.raise_for_status()
                 return response.json()
             self.sleep(OPENAQ_BACKOFF_SECONDS * 2**attempt)
-        raise RuntimeError(f"OpenAQ rate limit not lifted after {OPENAQ_MAX_ATTEMPTS} attempts: {path}")
+        raise OpenAqUnavailable(f"OpenAQ returned {response.status_code} after {OPENAQ_MAX_ATTEMPTS} attempts: {path}")
 
     def pages(self, path: str, params: dict) -> list[dict]:
         results, page = [], 1
@@ -175,7 +181,12 @@ def fetch_air_quality(client: OpenAqClient, window: Window) -> list[dict]:
     span = {"datetime_from": f"{start.isoformat()}Z", "datetime_to": f"{end.isoformat()}Z"}
     rows = []
     for sensor in sensors_in(locations, start, end):
-        rows.extend(hour_rows(sensor, client.pages(f"sensors/{sensor.sensor_id}/hours", span)))
+        try:
+            hours = client.pages(f"sensors/{sensor.sensor_id}/hours", span)
+        except OpenAqUnavailable as error:
+            logging.warning("Skipping sensor %s: %s", sensor.sensor_id, error)
+            continue
+        rows.extend(hour_rows(sensor, hours))
     return rows
 
 
